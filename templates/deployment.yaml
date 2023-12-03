@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: flask-app
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      initContainers:
+      - name: check-s3-bucket
+        image: amazon/aws-cli:latest
+        command: 
+        - "sh"
+        -  "-c"
+        - |
+          retry_count=0
+          max_retries=30
+          retry_interval=10
+
+          while [ $retry_count -lt $max_retries ]; do
+            # Check if the S3 bucket exists
+            if aws s3api head-bucket --bucket $S3_BUCKET_NAME ; then
+              echo "S3 bucket exists."
+              exit 0  # Exit with success status code
+            else
+              echo "Attempt $((retry_count+1))/$max_retries: S3 bucket does not exist. Retrying in $retry_interval seconds."
+              retry_count=$((retry_count+1))
+              sleep $retry_interval
+            fi
+          done
+
+          echo "Maximum retries reached. S3 bucket does not exist."
+          exit 1  # Exit with failure status code
+        env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_BUCKET_NAME
+              value: {{ .Values.bucketName }}
+              # valueFrom:
+              #   secretKeyRef:
+              #     name: aws-secrets
+              #     key: AWS_S3_BUCKET
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+      containers:      
+        - name: flask-app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DOCKERHUB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dockerhub-username
+                  key: username
+            - name: DOCKERHUB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dockerhub-password
+                  key: password
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_BUCKET_NAME
+              value: {{ .Values.bucketName }}
+              # valueFrom:
+              #   secretKeyRef:
+              #     name: aws-secrets
+              #     key: AWS_S3_BUCKET
+

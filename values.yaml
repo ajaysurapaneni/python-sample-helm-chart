@@ -1,0 +1,16 @@
+image:
+  repository: ajaysurapaneni/flask-test
+  tag: latest
+  pullPolicy: Always
+
+service:
+  name: flask-upload-app
+  port: 5000
+
+resources: {}
+
+awsSecrets:
+  accessKeyId: """
+  secretAccessKey: ""
+
+bucketName: ""
